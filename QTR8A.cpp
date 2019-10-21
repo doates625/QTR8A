@@ -69,7 +69,7 @@ float QTR8A::get_single(uint8_t index)
  */
 float QTR8A::get_mean()
 {
-	return Util::mean(readings, 8);
+	return CppUtil::mean(readings, 8);
 }
 
 /**
