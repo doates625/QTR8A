@@ -23,19 +23,41 @@ const float QTR8A::positions[8] =
 /**
  * @brief Constructs QTR-8A interface
  * @param inputs Array of ordered analog inputs
- * @param line_thresh Line detection threshold in range [0,1]
+ * @param white_thresh Maximum mean reading to be considered on white
+ * @param black_thresh Minimum mean reading to be considered on black
  * 
- * Analog readings increase from white to black. The on_line() method compares
- * the mean reading to the given threshold for line detection.
+ * Any mean reading between the white and black thresholds is assumed to be a
+ * black line on a white surface.
  */
-QTR8A::QTR8A(AnalogIn* inputs, float line_thresh)
+QTR8A::QTR8A(AnalogIn* inputs, float white_thresh, float black_thresh)
 {
 	this->inputs = inputs;
-	this->line_thresh = line_thresh;
+	this->white_thresh = white_thresh;
+	this->black_thresh = black_thresh;
 	for (uint8_t i = 0; i < 8; i++)
 	{
 		this->readings[i] = 0.0f;
 	}
+	this->mean = 0.0f;
+	this->state = on_unknown;
+}
+
+/**
+ * @brief Sets white surface threshold for state detection
+ * @param white_thresh Maximum mean reading to be considered on white
+ */
+void QTR8A::set_white_thresh(float white_thresh)
+{
+	this->white_thresh = white_thresh;
+}
+
+/**
+ * @brief Sets black surface threshold for state detection
+ * @param black_thresh Minimum mean reading to be considered on black
+ */
+void QTR8A::set_black_thresh(float black_thresh)
+{
+	this->black_thresh = black_thresh;
 }
 
 /**
@@ -44,14 +66,30 @@ QTR8A::QTR8A(AnalogIn* inputs, float line_thresh)
  * Call this method on each loop iteration before calls to:
  * - get_single()
  * - get_mean()
- * - on_line()
+ * - get_state()
  * - line_pos()
  */
 void QTR8A::update()
 {
+	// Get individual and average readings
 	for (uint8_t i = 0; i < 8; i++)
 	{
 		readings[i] = inputs[i].read();
+	}
+	mean = CppUtil::mean(readings, 8);
+
+	// Determine state with thresholds
+	if (mean < white_thresh)
+	{
+		state = on_white;
+	}
+	else if (mean > black_thresh)
+	{
+		state = on_black;
+	}
+	else
+	{
+		state = on_line;
 	}
 }
 
@@ -69,15 +107,21 @@ float QTR8A::get_single(uint8_t index)
  */
 float QTR8A::get_mean()
 {
-	return CppUtil::mean(readings, 8);
+	return mean;
 }
 
 /**
- * @brief Returns true if sensor detects a black line
+ * @brief Returns state from last update
+ * 
+ * State options:
+ * - on_white = On completely white surface
+ * - on_line = On black line on white surface
+ * - on_black = On completely black surface
+ * - on_unknown = Before update() is called
  */
-bool QTR8A::on_line()
+QTR8A::linestate_t QTR8A::get_state()
 {
-	return get_mean() > line_thresh;
+	return state;
 }
 
 /**
@@ -85,7 +129,9 @@ bool QTR8A::on_line()
  * 
  * The value 0 corresponds to the line being exactly the middle of the sensor
  * (between inputs 3 and 4). Negative values correspond to the line approaching
- * input 0, and positive values approaching input 7.
+ * input 0, and positive values approaching input 7. Note that the user should
+ * calibrate the white and black thresholds and assure that the state is on_line
+ * by calling get_state() before using this method.
  */
 float QTR8A::line_pos()
 {
