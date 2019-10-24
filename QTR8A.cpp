@@ -22,14 +22,14 @@ const float QTR8A::positions[8] =
 
 /**
  * @brief Constructs QTR-8A interface
- * @param inputs Array of ordered analog inputs
+ * @param inputs Array of ordered analog input pointers
  * @param white_thresh Maximum mean reading to be considered on white
  * @param black_thresh Minimum mean reading to be considered on black
  * 
  * Any mean reading between the white and black thresholds is assumed to be a
  * black line on a white surface.
  */
-QTR8A::QTR8A(AnalogIn* inputs, float white_thresh, float black_thresh)
+QTR8A::QTR8A(AnalogIn** inputs, float white_thresh, float black_thresh)
 {
 	this->inputs = inputs;
 	this->white_thresh = white_thresh;
@@ -40,6 +40,46 @@ QTR8A::QTR8A(AnalogIn* inputs, float white_thresh, float black_thresh)
 	}
 	this->mean = 0.0f;
 	this->state = on_unknown;
+	this->dynamic_io = false;
+}
+
+/**
+ * @brief Constructs QTR-8A interface
+ * @param input_pins Array of ordered analog input pin IDs
+ * @param white_thresh Maximum mean reading to be considered on white
+ * @param black_thresh Minimum mean reading to be considered on black
+ * 
+ * This constructor dynamically allocates the IO interfaces and deletes them
+ * on destruction.
+ */
+QTR8A::QTR8A(
+	Platform::pin_t* input_pins,
+	float white_thresh,
+	float black_thresh) :
+QTR8A(new AnalogIn*[8], white_thresh, black_thresh)
+{
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		this->inputs[i] = new AnalogIn(input_pins[i]);
+	}
+	this->dynamic_io = true;
+}
+
+/**
+ * @brief Destructs QTR-8A interface
+ * 
+ * Deletes IO interfaces if they were created with dynamic memory.
+ */
+QTR8A::~QTR8A()
+{
+	if (dynamic_io)
+	{
+		for (uint8_t i = 0; i < 8; i++)
+		{
+			delete inputs[i];
+		}
+		delete[] inputs;
+	}
 }
 
 /**
@@ -74,7 +114,7 @@ void QTR8A::update()
 	// Get individual and average readings
 	for (uint8_t i = 0; i < 8; i++)
 	{
-		readings[i] = inputs[i].read();
+		readings[i] = inputs[i]->read();
 	}
 	mean = CppUtil::mean(readings, 8);
 
