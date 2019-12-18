@@ -22,14 +22,9 @@ public:
 
 	// Construction and initialization
 	QTR8A(
-		AnalogIn** inputs,
-		float white_thresh = 0.1f,
-		float black_thresh = 0.9f);
-	QTR8A(
 		Platform::pin_t* input_pins,
 		float white_thresh = 0.1f,
 		float black_thresh = 0.9f);
-	~QTR8A();
 	void set_white_thresh(float white_thresh);
 	void set_black_thresh(float black_thresh);
 	
@@ -42,11 +37,10 @@ public:
 	
 private:
 	static const float positions[8];
-	AnalogIn** inputs;
+	AnalogIn inputs[8];
 	float white_thresh;
 	float black_thresh;
 	float readings[8];
 	float mean;
 	linestate_t state;
-	bool dynamic_io;
 };
